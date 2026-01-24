@@ -65,7 +65,11 @@ class MainWindow(QMainWindow):
         self.btn_stop.setShortcut("F6")
         self.btn_stop.setEnabled(False)
         
+        self.btn_analyzer = QPushButton("Input Analyzer")
+        self.btn_analyzer.clicked.connect(self.open_input_analyzer)
+        
         control_layout.addStretch()
+        control_layout.addWidget(self.btn_analyzer)
         control_layout.addWidget(self.btn_start)
         control_layout.addWidget(self.btn_stop)
         main_layout.addLayout(control_layout)
@@ -215,3 +219,8 @@ class MainWindow(QMainWindow):
         # Cleanup references to avoid "RuntimeError: wrapped C/C++ object... has been deleted"
         self.thread = None
         self.worker = None
+
+    def open_input_analyzer(self):
+        from .analyzer import InputAnalyzerDialog
+        dlg = InputAnalyzerDialog(self.input_mgr, self)
+        dlg.exec()

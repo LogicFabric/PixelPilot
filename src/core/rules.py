@@ -5,7 +5,7 @@ from .state import StateManager
 
 class Condition(ABC):
     @abstractmethod
-    def evaluate(self, state: StateManager, vision_provider=None) -> bool:
+    def evaluate(self, state: StateManager, vision_provider=None, input_provider=None) -> bool:
         pass
 
 class PixelColorCondition(Condition):
@@ -15,7 +15,7 @@ class PixelColorCondition(Condition):
         self.target_rgb = target_rgb
         self.tolerance = tolerance
 
-    def evaluate(self, state: StateManager, vision_provider=None) -> bool:
+    def evaluate(self, state: StateManager, vision_provider=None, input_provider=None) -> bool:
         if not vision_provider: return False
         current_color = vision_provider.get_pixel(self.x, self.y)
         if not current_color: return False
@@ -27,7 +27,7 @@ class RegionColorCondition(Condition):
         self.target_rgb = target_rgb
         self.tolerance = tolerance
 
-    def evaluate(self, state: StateManager, vision_provider=None) -> bool:
+    def evaluate(self, state: StateManager, vision_provider=None, input_provider=None) -> bool:
         if not vision_provider: return False
         return vision_provider.search_color(self.region, self.target_rgb, self.tolerance) is not None
 
@@ -36,12 +36,24 @@ class TimerCondition(Condition):
         self.interval = interval_seconds
         self.timer_id = timer_id
 
-    def evaluate(self, state: StateManager, vision_provider=None) -> bool:
+    def evaluate(self, state: StateManager, vision_provider=None, input_provider=None) -> bool:
         last_time = state.get(f"timer_{self.timer_id}", 0.0)
         return (time.time() - last_time) >= self.interval
 
     def reset_timer(self, state: StateManager):
         state.set(f"timer_{self.timer_id}", time.time())
+
+class KeyPressCondition(Condition):
+    """Checks if a specific key is currently passed."""
+    def __init__(self, key_code: str):
+        self.key_code = key_code.lower()
+
+    def evaluate(self, state: StateManager, vision_provider=None, input_provider=None) -> bool:
+        # Note: evaluate signature in base/impls might need updating to accept input_provider
+        # Graph calls evaluate with (state, vision, input)
+        if input_provider:
+            return input_provider.is_key_pressed(self.key_code)
+        return False
 
 class Action(ABC):
     @abstractmethod

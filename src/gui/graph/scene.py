@@ -87,3 +87,37 @@ class FBDScene(QGraphicsScene):
             self.start_port_item = None
             
         super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        item = self.itemAt(event.scenePos(), QTransform())
+        # The visual node is a group-like item, usually click hits the Rect or Child Text
+        # VisualNode inherits QGraphicsRectItem, so 'item' might be the node itself or a child
+        
+        node_item = None
+        if isinstance(item, VisualNode):
+            node_item = item
+        elif item and isinstance(item.parentItem(), VisualNode):
+            node_item = item.parentItem()
+            
+        if node_item:
+            self.open_config_dialog(node_item)
+            
+        super().mouseDoubleClickEvent(event)
+
+    def open_config_dialog(self, visual_node):
+        from .dialogs import InputConfigDialog, ProcessConfigDialog, OutputConfigDialog
+        from src.core.graph import InputNode, ProcessNode, OutputNode
+        
+        node = visual_node.node_data
+        dialog = None
+        
+        if isinstance(node, InputNode):
+            dialog = InputConfigDialog(node)
+        elif isinstance(node, ProcessNode):
+            dialog = ProcessConfigDialog(node)
+        elif isinstance(node, OutputNode):
+            dialog = OutputConfigDialog(node)
+            
+        if dialog and dialog.exec():
+            # Update Visuals if needed (e.g. name changed)
+            visual_node.title_item.setPlainText(node.name)
