@@ -11,16 +11,34 @@ logger = logging.getLogger(__name__)
 class AutomationEngine:
     """
     Runs the main automation loop.
-    Iterates through rules and executes them if conditions match.
+    
+    Executes graph at configurable frequency (default 30 Hz),
+    iterating through all nodes and evaluating them in topological order.
+    
+    Attributes:
+        vision: Vision manager for screen capture
+        input: Input manager for keyboard/mouse control  
+        state: State manager for shared variables
+        rules: List of automation rules (legacy, use graph instead)
+        _running: Whether engine is currently running
+        _paused: Whether engine is paused
+        _target_hz: Target execution frequency
+        _lock: Thread lock for rule list protection
     """
     def __init__(self, vision_manager, input_manager, state_manager: StateManager):
+        from src.utils.config import get_config
+        
         self.vision = vision_manager
         self.input = input_manager
         self.state = state_manager
         self.rules: List[Rule] = []
         self._running = False
         self._paused = False
-        self._target_hz = 30
+        
+        # Load configuration
+        config = get_config()
+        self._target_hz = config.get('engine.target_hz', default=30)
+        
         self._lock = threading.Lock()
 
     def add_rule(self, rule: Rule):

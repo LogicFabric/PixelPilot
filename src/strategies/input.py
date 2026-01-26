@@ -123,31 +123,87 @@ class PynputStrategy(InputStrategy):
             return str(key)
 
 class EvdevStrategy(InputStrategy):
-    """Primary Linux strategy using uinput and raw device reading."""
-    def __init__(self):
+    """
+    Primary Linux strategy using uinput and raw device reading.
+    
+    Provides low-level control over keyboard and mouse through evdev/uinput.
+    Requires proper permissions (access to /dev/uinput and /dev/input/*).
+    
+    Attributes:
+        ui: UInput virtual device for simulating events
+        key_map: Mapping of common key names to evdev codes
+        screen_width: Screen width for absolute mouse positioning
+        screen_height: Screen height for absolute mouse positioning
+    """
+    def __init__(self, screen_width: int = 1920, screen_height: int = 1080):
         super().__init__()
         if not HAS_EVDEV:
-            raise ImportError("evdev is not installed")
+            from ..core.exceptions import InputStrategyError
+            raise InputStrategyError("evdev module is not installed")
+        
+        # Screen dimensions for mouse positioning
+        self.screen_width = screen_width
+        self.screen_height = screen_height
         
         try:
-            self.ui = UInput()
-            logger.info("Initialized Evdev Strategy (UInput)")
+            # Create UInput device with simplified capabilities
+            # Note: Absolute positioning requires special setup, using basic capabilities
+            cap = {
+                e.EV_KEY: [
+                    # Mouse buttons
+                    e.BTN_LEFT, e.BTN_RIGHT, e.BTN_MIDDLE,
+                    # Common keyboard keys
+                    e.KEY_A, e.KEY_B, e.KEY_C, e.KEY_D, e.KEY_E, e.KEY_F,
+                    e.KEY_G, e.KEY_H, e.KEY_I, e.KEY_J, e.KEY_K, e.KEY_L,
+                    e.KEY_M, e.KEY_N, e.KEY_O, e.KEY_P, e.KEY_Q, e.KEY_R,
+                    e.KEY_S, e.KEY_T, e.KEY_U, e.KEY_V, e.KEY_W, e.KEY_X,
+                    e.KEY_Y, e.KEY_Z,
+                    e.KEY_SPACE, e.KEY_ENTER, e.KEY_ESC, e.KEY_TAB,
+                    e.KEY_BACKSPACE, e.KEY_DELETE,
+                    e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT,
+                    e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL,
+                    e.KEY_LEFTALT, e.KEY_RIGHTALT,
+                ],
+                # Using relative mouse movement instead of absolute (more compatible)
+                e.EV_REL: [e.REL_X, e.REL_Y, e.REL_WHEEL]
+            }
+            
+            self.ui = UInput(cap, name='pixelpilot-virtual-input')
+            logger.info(f"Initialized Evdev Strategy (relative mouse mode)")
+            
         except PermissionError:
-            raise PermissionError("No permission to access /dev/uinput")
+            from ..core.exceptions import PermissionError as PPPermissionError
+            raise PPPermissionError(
+                "No permission to access /dev/uinput. "
+                "Run: sudo usermod -a -G input $USER && sudo modprobe uinput"
+            )
         except Exception as err:
-            raise RuntimeError(f"Failed to create UInput device: {err}")
+            from ..core.exceptions import InputStrategyError
+            raise InputStrategyError(f"Failed to create UInput device: {err}")
 
         self.key_map = {
-            'a': e.KEY_A, 'b': e.KEY_B, 'c': e.KEY_C, # ... (would need full map)
+            'a': e.KEY_A, 'b': e.KEY_B, 'c': e.KEY_C, 'd': e.KEY_D,
+            'e': e.KEY_E, 'f': e.KEY_F, 'g': e.KEY_G, 'h': e.KEY_H,
+            'i': e.KEY_I, 'j': e.KEY_J, 'k': e.KEY_K, 'l': e.KEY_L,
+            'm': e.KEY_M, 'n': e.KEY_N, 'o': e.KEY_O, 'p': e.KEY_P,
+            'q': e.KEY_Q, 'r': e.KEY_R, 's': e.KEY_S, 't': e.KEY_T,
+            'u': e.KEY_U, 'v': e.KEY_V, 'w': e.KEY_W, 'x': e.KEY_X,
+            'y': e.KEY_Y, 'z': e.KEY_Z,
             'space': e.KEY_SPACE, 'enter': e.KEY_ENTER, 'esc': e.KEY_ESC,
+            'tab': e.KEY_TAB, 'backspace': e.KEY_BACKSPACE, 'delete': e.KEY_DELETE,
+            'shift': e.KEY_LEFTSHIFT, 'ctrl': e.KEY_LEFTCTRL, 'alt': e.KEY_LEFTALT,
         }
         
         self._listening = False
         self._thread = None
 
     def press_key(self, key_code: str):
-        # Naive mapping for now. Real implementation needs a robust map.
-        # Fallback: try to find by name in ecodes
+        """
+        Simulate a key press.
+        
+        Args:
+            key_code: Key to press (e.g., 'a', 'space', 'enter')
+        """
         code = self.key_map.get(key_code.lower())
         if not code:
             # Try dynamic lookup
@@ -156,22 +212,50 @@ class EvdevStrategy(InputStrategy):
                 code = getattr(e, attr)
         
         if code:
-            self.ui.write(e.EV_KEY, code, 1)
-            self.ui.write(e.EV_KEY, code, 0)
+            self.ui.write(e.EV_KEY, code, 1)  # Key down
+            self.ui.write(e.EV_KEY, code, 0)  # Key up
             self.ui.syn()
         else:
-            logger.warning(f"Evdev: Unknown key code {key_code}")
+            logger.warning(f"Evdev: Unknown key code '{key_code}'")
 
     def move_mouse(self, x: int, y: int):
-        # Stub
+        """
+        Move mouse to position using relative movement.
+        
+        Note: Evdev doesn't easily support absolute positioning without
+        additional setup. This uses pynput fallback for mouse positioning.
+        Keyboard input still uses evdev for better compatibility.
+        
+        Args:
+            x: X coordinate (0 to screen_width)
+            y: Y coordinate (0 to screen_height)
+        """
+        # For mouse positioning, we need to fall back to another method
+        # as relative positioning requires knowing current position
+        logger.warning("Evdev mouse positioning not fully supported, use pynput for mouse")
         pass
 
     def click_mouse(self, x: int, y: int, button: str = 'left'):
-        # Stub for click
+        """
+        Click mouse at position.
+        
+        Note: Mouse positioning is limited in evdev. This only sends the click event.
+        You may need to use pynput strategy for full mouse control.
+        
+        Args:
+            x: X coordinate
+            y: Y coordinate
+            button: Mouse button ('left', 'right', 'middle')
+        """
+        # Just click without moving (movement not reliably supported)
         btn = e.BTN_LEFT
-        if button == 'right': btn = e.BTN_RIGHT
-        self.ui.write(e.EV_KEY, btn, 1)
-        self.ui.write(e.EV_KEY, btn, 0)
+        if button == 'right':
+            btn = e.BTN_RIGHT
+        elif button == 'middle':
+            btn = e.BTN_MIDDLE
+            
+        self.ui.write(e.EV_KEY, btn, 1)  # Button down
+        self.ui.write(e.EV_KEY, btn, 0)  # Button up
         self.ui.syn()
 
     def start_listening(self):

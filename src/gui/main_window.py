@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-    QPushButton, QTextEdit, QLabel, QGroupBox, QListWidget, QGraphicsView
+    QPushButton, QTextEdit, QLabel, QGroupBox, QListWidget, QGraphicsView,
+    QMenuBar, QFileDialog, QMessageBox
 )
 from PyQt6.QtCore import QThread, pyqtSlot, Qt
 import logging
@@ -10,6 +11,8 @@ from .workers import EngineWorker
 from .graph.scene import FBDScene
 from src.core.graph import InputNode, ProcessNode, OutputNode
 from src.core.rules import PixelColorCondition, KeyPressAction
+from src.core.serialization import GraphSerializer
+from src.core.exceptions import SerializationError, DeserializationError
 
 from PyQt6.QtGui import QPainter
 
@@ -29,6 +32,7 @@ class MainWindow(QMainWindow):
         self.engine = engine
         self.vision_mgr = vision_mgr
         self.input_mgr = input_mgr
+        self.current_file = None  # Track currently loaded file
         
         self.setWindowTitle("PixelPilot - FBD Editor")
         self.resize(1200, 800)
@@ -38,6 +42,7 @@ class MainWindow(QMainWindow):
         self.thread = None
         self.worker = None
 
+        self._create_menu_bar()
         self._init_ui()
         self._setup_logging_redirect()
        
@@ -99,6 +104,14 @@ class MainWindow(QMainWindow):
         self.scene = FBDScene()
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Configure scroll bars - show only when needed
+        from PyQt6.QtCore import Qt
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Better drag behavior
+        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         
         canvas_layout.addWidget(self.view)
         main_layout.addLayout(canvas_layout)
@@ -224,3 +237,191 @@ class MainWindow(QMainWindow):
         from .analyzer import InputAnalyzerDialog
         dlg = InputAnalyzerDialog(self.input_mgr, self)
         dlg.exec()
+    
+    def _create_menu_bar(self):
+        """Create menu bar with File menu."""
+        menubar = self.menuBar()
+        
+        # File menu
+        file_menu = menubar.addMenu("&File")
+        
+        # New action
+        new_action = file_menu.addAction("&New")
+        new_action.setShortcut("Ctrl+N")
+        new_action.triggered.connect(self.new_graph)
+        
+        # Open action
+        open_action = file_menu.addAction("&Open...")
+        open_action.setShortcut("Ctrl+O")
+        open_action.triggered.connect(self.load_graph)
+        
+        # Save action
+        save_action = file_menu.addAction("&Save")
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self.save_graph)
+        
+        # Save As action
+        save_as_action = file_menu.addAction("Save &As...")
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.triggered.connect(self.save_graph_as)
+        
+        file_menu.addSeparator()
+        
+        # Exit action
+        exit_action = file_menu.addAction("E&xit")
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+    
+    def new_graph(self):
+        """Create a new empty graph."""
+        # Confirm if there are unsaved changes
+        if len(self.scene.graph.nodes) > 0:
+            reply = QMessageBox.question(
+                self, 'New Graph',
+                'This will clear the current graph. Continue?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                return
+        
+        # Clear scene
+        self.scene.clear()
+        self.scene.graph.nodes.clear()
+        self.scene.graph.links.clear()
+        self.scene.visual_nodes.clear()
+        self.current_file = None
+        self.setWindowTitle("PixelPilot - FBD Editor")
+        self.append_log("New graph created")
+    
+    def save_graph(self):
+        """Save graph to current file or prompt for location."""
+        if self.current_file:
+            self._save_to_file(self.current_file)
+        else:
+            self.save_graph_as()
+    
+    def save_graph_as(self):
+        """Save graph to a new file."""
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Graph",
+            "",
+            "PixelPilot Files (*.pp);;All Files (*)"
+        )
+        
+        if filename:
+            if not filename.endswith('.pp'):
+                filename += '.pp'
+            self._save_to_file(filename)
+    
+    def _save_to_file(self, filename: str):
+        """Actually save the graph to file."""
+        try:
+            GraphSerializer.save_to_file(self.scene.graph, filename)
+            self.current_file = filename
+            self.setWindowTitle(f"PixelPilot - {filename}")
+            self.append_log(f"Graph saved to {filename}")
+            QMessageBox.information(self, "Success", f"Graph saved successfully to {filename}")
+        except SerializationError as e:
+            logger.error(f"Failed to save graph: {e}")
+            QMessageBox.critical(
+                self, "Save Error",
+                f"Failed to save graph:\n{str(e)}"
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error saving graph: {e}")
+            QMessageBox.critical(
+                self, "Save Error",
+                f"Unexpected error:\n{str(e)}"
+            )
+    
+    def load_graph(self):
+        """Load graph from file."""
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Graph",
+            "",
+            "PixelPilot Files (*.pp);;All Files (*)"
+        )
+        
+        if filename:
+            self._load_from_file(filename)
+    
+    def _load_from_file(self, filename: str):
+        """Actually load the graph from file."""
+        from PyQt6.QtWidgets import QApplication
+        
+        try:
+            # Show status message
+            self.append_log(f"Loading graph from {filename}...")
+            QApplication.processEvents()  # Keep GUI responsive
+            
+            # Load graph
+            graph = GraphSerializer.load_from_file(filename)
+            
+            self.append_log(f"Loaded {len(graph.nodes)} nodes, {len(graph.links)} links")
+            QApplication.processEvents()
+            
+            # Clear current scene
+            self.scene.clear()
+            
+            # Rebuild scene from loaded graph
+            self.scene.graph = graph
+            self.scene.visual_nodes.clear()
+            
+            # Create visual nodes with progress updates
+            for i, node in enumerate(graph.nodes):
+                if i % 5 == 0:  # Update every 5 nodes
+                    self.append_log(f"Creating visual nodes... {i}/{len(graph.nodes)}")
+                    QApplication.processEvents()  # Keep GUI responsive
+                
+                # Note: add_visual_node already calls graph.add_node, 
+                # but our graph already has the nodes, so we need custom logic
+                vn = self.scene._create_visual_node_from_existing(node)
+            
+            self.append_log("Recreating connections...")
+            QApplication.processEvents()
+            
+            # Recreate visual links
+            for link in graph.links:
+                try:
+                    source_vnode = self.scene.visual_nodes[link.source.node.id]
+                    target_vnode = self.scene.visual_nodes[link.target.node.id]
+                    
+                    # Find port visual items
+                    src_port = None
+                    for child in source_vnode.childItems():
+                        if hasattr(child, 'port_data') and child.port_data == link.source:
+                            src_port = child
+                            break
+                    
+                    tgt_port = None
+                    for child in target_vnode.childItems():
+                        if hasattr(child, 'port_data') and child.port_data == link.target:
+                            tgt_port = child
+                            break
+                    
+                    if src_port and tgt_port:
+                        from .graph.graphics import VisualLink
+                        vl = VisualLink(src_port, tgt_port)
+                        self.scene.addItem(vl)
+                except Exception as e:
+                    logger.warning(f"Failed to recreate link: {e}")
+            
+            self.current_file = filename
+            self.setWindowTitle(f"PixelPilot - {filename}")
+            self.append_log(f"✓ Graph loaded successfully!")
+            QMessageBox.information(self, "Success", f"Graph loaded successfully!\n{len(graph.nodes)} nodes, {len(graph.links)} connections")
+            
+        except DeserializationError as e:
+            logger.error(f"Failed to load graph: {e}")
+            QMessageBox.critical(
+                self, "Load Error",
+                f"Failed to load graph:\n{str(e)}"
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error loading graph: {e}")
+            QMessageBox.critical(
+                self, "Load Error",
+                f"Unexpected error:\n{str(e)}"
+            )

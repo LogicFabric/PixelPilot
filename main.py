@@ -12,15 +12,9 @@ from src.gui.main_window import MainWindow
 # Ensure src is in python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 
-# Configure Logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger("PixelPilot")
+# Configure Logging using centralized utility
+from src.utils.logger import setup_logger
+logger = setup_logger("PixelPilot")
 
 def main():
     logger.info("PixelPilot starting...")
