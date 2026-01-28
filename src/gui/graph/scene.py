@@ -150,7 +150,16 @@ class FBDScene(QGraphicsScene):
                 return  # Consume the event
         
         # If no port found, let the default behavior handle it
-        super().mousePressEvent(event)
+        # If we're in linking mode, don't let the view handle the press event
+        if not self.temp_link:
+            # If we're in linking mode, don't let the view handle the press event
+            if not self.temp_link:
+                super().mousePressEvent(event)
+        else:
+            # Clean up temp link if clicking elsewhere
+            self.removeItem(self.temp_link)
+            self.temp_link = None
+            self.start_port_item = None
 
     def mouseMoveEvent(self, event):
         if self.temp_link and self.start_port_item:
@@ -216,7 +225,11 @@ class FBDScene(QGraphicsScene):
                 
                 # Check different nodes
                 if src.parentItem() == tgt.parentItem():
-                    super().mouseReleaseEvent(event)
+                    # If we're in linking mode, don't let the view handle the release event
+                    if not self.temp_link:
+                        # If we're in linking mode, don't let the view handle the release event
+                        if not self.temp_link:
+                            super().mouseReleaseEvent(event)
                     return
                 
                 # Link logic in core

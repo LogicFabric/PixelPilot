@@ -311,12 +311,12 @@ class EvdevStrategy(InputStrategy):
                                 pressed = (event.value == 1) # 1=down, 0=up, 2=hold
                                 if event.value != 2:
                                     self._notify_listeners(k, pressed)
-                    except (IOError, OSError) as e:
+                    except (IOError, OSError) as inner_err:
                         logger.warning(f"Device disconnected: {dev.name}")
                         devices.remove(dev)
                         del fds[fd]
-            except Exception as outer_err:
-                 logger.error(f"Listener loop error: {outer_err}")
+            except Exception as err:
+                 logger.error(f"Listener loop error: {err}")
                  time.sleep(2) # Prevent rapid-fire logging if error persists
 
     def _get_kb_devices(self):
