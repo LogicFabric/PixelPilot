@@ -12,14 +12,14 @@ class FBDScene(QGraphicsScene):
     Starts with a compact size and expands automatically when
     nodes approach the edges. Scroll bars appear only when needed.
     """
-    
+
     # Padding around nodes (pixels)
     PADDING = 100
     # Minimum scene size
     # Minimum scene size
     MIN_WIDTH = 600
     MIN_HEIGHT = 400
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setBackgroundBrush(QBrush(QColor("#2c3e50")))
@@ -138,12 +138,18 @@ class FBDScene(QGraphicsScene):
         return vn
 
     def mousePressEvent(self, event):
-        item = self.itemAt(event.scenePos(), QTransform())
-        if isinstance(item, VisualPort):
-            self.start_port_item = item
-            self.temp_link = QGraphicsPathItem() # Placeholder
-            self.temp_link.setPen(QPen(QColor("#f1c40f"), 2, Qt.PenStyle.DashLine))
-            self.addItem(self.temp_link)
+        # First check for ports at the click position
+        items = self.items(event.scenePos())
+        for item in items:
+            if isinstance(item, VisualPort):
+                self.start_port_item = item
+                self.temp_link = QGraphicsPathItem() # Placeholder
+                self.temp_link.setPen(QPen(QColor("#f1c40f"), 2, Qt.PenStyle.DashLine))
+                self.temp_link.setZValue(1) # Higher priority than nodes
+                self.addItem(self.temp_link)
+                return  # Consume the event
+        
+        # If no port found, let the default behavior handle it
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -221,6 +227,7 @@ class FBDScene(QGraphicsScene):
                 
                 # Add Visual Link
                 vl = VisualLink(src, tgt)
+                vl.setZValue(1) # Higher priority than nodes
                 self.addItem(vl)
                 
             self.start_port_item = None

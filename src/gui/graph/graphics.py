@@ -24,6 +24,13 @@ class VisualPort(QGraphicsRectItem):
             
         self.setPen(QPen(Qt.GlobalColor.black))
         self.update_status()
+        
+        # Make ports more clickable by increasing their z-value
+        self.setZValue(1) # Higher than nodes
+        
+        # Set flags to ensure ports receive mouse events
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
+                     QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
     def update_status(self):
         """Update port color based on current value."""
