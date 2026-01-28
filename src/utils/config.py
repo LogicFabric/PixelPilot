@@ -27,17 +27,22 @@ class Config:
         >>> theme = config.get('gui.theme', default='dark')
     """
     
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, data: Optional[Dict[str, Any]] = None):
         """
         Initialize configuration manager.
         
         Args:
-            config_path: Path to configuration file. If None, searches for
-                        config.yaml in project root and current directory.
+            config_path: Path to configuration file.
+            data: Explicit configuration data (overrides file loading, useful for tests).
         """
-        self.config_path = self._find_config_file(config_path)
-        self.data: Dict[str, Any] = {}
-        self._load_config()
+        self.data: Dict[str, Any] = data if data is not None else {}
+        self.config_path: Optional[Path] = None
+        
+        if not self.data:
+            self.config_path = self._find_config_file(config_path)
+            self._load_config()
+        elif config_path:
+            self.config_path = Path(config_path)
     
     def _find_config_file(self, config_path: Optional[str]) -> Path:
         """

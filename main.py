@@ -14,7 +14,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src'
 
 # Configure Logging using centralized utility
 from src.utils.logger import setup_logger
-logger = setup_logger("PixelPilot")
+# Force DEBUG level for console to provide verbose terminal output
+logger = setup_logger("PixelPilot", level="DEBUG")
 
 def main():
     logger.info("PixelPilot starting...")
@@ -26,9 +27,13 @@ def main():
         logger.info("Initializing State Manager...")
         state_mgr = StateManager()
 
+        # Load configuration once
+        from src.utils.config import get_config
+        config = get_config()
+
         # Initialize Vision
         logger.info("Initializing Vision System...")
-        vision_mgr = VisionManager()
+        vision_mgr = VisionManager(config=config)
         if vision_mgr.strategy:
             logger.info(f"Vision Strategy Active: {type(vision_mgr.strategy).__name__}")
         else:
@@ -36,7 +41,7 @@ def main():
 
         # Initialize Input
         logger.info("Initializing Input System...")
-        input_mgr = InputManager()
+        input_mgr = InputManager(config=config)
         if input_mgr.strategy:
              logger.info(f"Input Strategy Active: {type(input_mgr.strategy).__name__}")
         else:
@@ -44,7 +49,7 @@ def main():
 
         # Initialize Engine
         logger.info("Initializing Automation Engine...")
-        engine = AutomationEngine(vision_mgr, input_mgr, state_mgr)
+        engine = AutomationEngine(vision_mgr, input_mgr, state_mgr, config=config)
 
         # Initialize UI
         logger.info("Initializing GUI...")

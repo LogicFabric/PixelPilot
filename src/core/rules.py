@@ -49,10 +49,11 @@ class KeyPressCondition(Condition):
         self.key_code = key_code.lower()
 
     def evaluate(self, state: StateManager, vision_provider=None, input_provider=None) -> bool:
-        # Note: evaluate signature in base/impls might need updating to accept input_provider
-        # Graph calls evaluate with (state, vision, input)
         if input_provider:
-            return input_provider.is_key_pressed(self.key_code)
+            is_pressed = input_provider.is_key_pressed(self.key_code)
+            if is_pressed:
+                logger.debug(f"KeyPressCondition: Key '{self.key_code}' DETECTED!")
+            return is_pressed
         return False
 
 class Action(ABC):

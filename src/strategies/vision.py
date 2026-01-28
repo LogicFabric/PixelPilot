@@ -160,7 +160,8 @@ class CLIStrategy(VisionStrategy):
 
 class VisionManager:
     """Auto-detects and manages the best vision strategy."""
-    def __init__(self):
+    def __init__(self, config=None):
+        self._config = config
         self.strategy: Optional[VisionStrategy] = None
         self._init_strategy()
 

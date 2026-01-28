@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QPushButton, QTextEdit, QLabel, QGroupBox, QListWidget, QGraphicsView,
-    QMenuBar, QFileDialog, QMessageBox
+    QMenuBar, QFileDialog, QMessageBox, QDialog, QFormLayout, QSpinBox
 )
-from PyQt6.QtCore import QThread, pyqtSlot, Qt
+from PyQt6.QtCore import QThread, pyqtSlot, Qt, QTimer
 import logging
 
 from .styles import DARK_THEME
@@ -13,6 +13,7 @@ from src.core.graph import InputNode, ProcessNode, OutputNode
 from src.core.rules import PixelColorCondition, KeyPressAction
 from src.core.serialization import GraphSerializer
 from src.core.exceptions import SerializationError, DeserializationError
+from src.utils.settings import get_settings
 
 from PyQt6.QtGui import QPainter
 
@@ -86,6 +87,7 @@ class MainWindow(QMainWindow):
         palette_layout = QVBoxLayout()
         btn_add_input = QPushButton("Add Input Block")
         btn_add_input.clicked.connect(self.add_input_node)
+        btn_add_input.setToolTip("Generic Input (Pixel Check, Key Press, etc.)")
         
         btn_add_process = QPushButton("Add Process Block")
         btn_add_process.clicked.connect(self.add_process_node)
@@ -115,6 +117,11 @@ class MainWindow(QMainWindow):
         
         canvas_layout.addWidget(self.view)
         main_layout.addLayout(canvas_layout)
+        
+        # Live Wire Debugging Timer
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.timeout.connect(self.update_live_wires)
+        self.refresh_timer.start(50) # 50ms = 20Hz refresh
 
         # Logs Bottom
         self.log_console = QTextEdit()
@@ -123,20 +130,31 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.log_console)
 
     def add_input_node(self):
-        # Placeholder preset
+        # Default: Pixel check (configurable via double-click)
         c = PixelColorCondition(100, 100, (255, 255, 255))
-        node = InputNode("Pixel Check", c)
+        node = InputNode("Input Block", c)
         self.scene.add_visual_node(node, 100, 100)
     
     def add_process_node(self):
-        node = ProcessNode("AND Logic", "AND")
+        node = ProcessNode("Process Block", "AND")
         self.scene.add_visual_node(node, 300, 100)
         
     def add_output_node(self):
         a = KeyPressAction("space")
-        node = OutputNode("Press Space", a)
+        node = OutputNode("Output Block", a)
         self.scene.add_visual_node(node, 500, 100)
 
+
+    def update_live_wires(self):
+        """Update the visual state of links and ports in the scene for real-time debugging."""
+        if not self.engine.is_running():
+            return
+            
+        from .graph.graphics import VisualLink, VisualPort
+        # Update all links and ports to show signal flow
+        for item in self.scene.items():
+            if isinstance(item, (VisualLink, VisualPort)):
+                item.update_status()
 
     def _setup_logging_redirect(self):
         # Create a handler that pipes to our update_log method
@@ -186,6 +204,9 @@ class MainWindow(QMainWindow):
                  pass
 
     def start_engine(self):
+        # Link current graph to engine before starting
+        self.engine.set_graph(self.scene.graph)
+        
         if self.thread is not None:
              if self.thread.isRunning():
                 return
@@ -239,11 +260,14 @@ class MainWindow(QMainWindow):
         dlg.exec()
     
     def _create_menu_bar(self):
-        """Create menu bar with File menu."""
+        """Create menu bar with File and Edit menus."""
         menubar = self.menuBar()
         
         # File menu
         file_menu = menubar.addMenu("&File")
+
+        # ... existing File menu actions ...
+        # (I will keep the existing ones by using a more precise replacement)
         
         # New action
         new_action = file_menu.addAction("&New")
@@ -271,6 +295,37 @@ class MainWindow(QMainWindow):
         exit_action = file_menu.addAction("E&xit")
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
+
+        # Edit menu
+        edit_menu = menubar.addMenu("&Edit")
+        settings_action = edit_menu.addAction("&Settings")
+        settings_action.triggered.connect(self.open_settings)
+
+    def open_settings(self):
+        """Open the Settings dialog."""
+        dialog = SettingsDialog(self)
+        if dialog.exec():
+            self.refresh_ui_from_settings()
+
+    def refresh_ui_from_settings(self):
+        """Update scene and visual elements after settings change."""
+        s = get_settings()
+        ms = int(s.get("engine/refresh_ms", 50))
+        self.refresh_timer.setInterval(ms)
+        
+        from .graph.graphics import VisualNode, VisualPort, VisualLink
+        port_size = int(s.get("gui/port_size", 12))
+        
+        for item in self.scene.items():
+            if isinstance(item, VisualPort):
+                item.size = port_size
+                item.setRect(-port_size/2, -port_size/2, port_size, port_size)
+            elif isinstance(item, VisualLink):
+                item.update_path()
+            elif isinstance(item, VisualNode):
+                # Optionally re-layout if port pos changes, but VisualNode uses fixed offsets in _setup_ports
+                # For now, just call update() to repaint
+                item.update()
     
     def new_graph(self):
         """Create a new empty graph."""
@@ -425,3 +480,41 @@ class MainWindow(QMainWindow):
                 self, "Load Error",
                 f"Unexpected error:\n{str(e)}"
             )
+
+class SettingsDialog(QDialog):
+    """Dialog for editing user preferences."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.settings = get_settings()
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self.port_size_spin = QSpinBox()
+        self.port_size_spin.setRange(8, 32)
+        self.port_size_spin.setValue(int(self.settings.get("gui/port_size", 12)))
+        form.addRow("Connector Size (px):", self.port_size_spin)
+
+        self.refresh_ms_spin = QSpinBox()
+        self.refresh_ms_spin.setRange(10, 500)
+        self.refresh_ms_spin.setValue(int(self.settings.get("engine/refresh_ms", 50)))
+        form.addRow("Visual Refresh (ms):", self.refresh_ms_spin)
+
+        layout.addLayout(form)
+
+        btns = QHBoxLayout()
+        save = QPushButton("Save")
+        save.clicked.connect(self.accept)
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(save)
+        btns.addWidget(cancel)
+        layout.addLayout(btns)
+
+    def accept(self):
+        self.settings.set("gui/port_size", self.port_size_spin.value())
+        self.settings.set("engine/refresh_ms", self.refresh_ms_spin.value())
+        super().accept()

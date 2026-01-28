@@ -25,33 +25,53 @@ class AutomationEngine:
         _target_hz: Target execution frequency
         _lock: Thread lock for rule list protection
     """
-    def __init__(self, vision_manager, input_manager, state_manager: StateManager):
-        from src.utils.config import get_config
-        
+    def __init__(self, vision_manager, input_manager, state_manager: StateManager, config=None):
         self.vision = vision_manager
         self.input = input_manager
         self.state = state_manager
         self.rules: List[Rule] = []
+        self.graph = None # Primary FBD graph
         self._running = False
         self._paused = False
         
-        # Load configuration
-        config = get_config()
-        self._target_hz = config.get('engine.target_hz', default=30)
+        # Load configuration via Dependency Injection
+        self._config = config if config is not None else {}
+        # Support both Config object and dictionary
+        if hasattr(self._config, 'get'):
+            self._target_hz = self._config.get('engine.target_hz', 30)
+        else:
+            self._target_hz = self._config.get('engine.target_hz', 30)
         
         self._lock = threading.Lock()
+
+    def set_graph(self, graph):
+        """Set the active graph for execution."""
+        with self._lock:
+            self.graph = graph
 
     def add_rule(self, rule: Rule):
         with self._lock:
             self.rules.append(rule)
 
-    def start(self):
+    def start(self, blocking=False):
+        """
+        Start the engine.
+        
+        Args:
+            blocking: If True, blocks until engine stops. Otherwise starts in background thread.
+        """
         if self._running:
             return
+            
         self._running = True
         self._paused = False
-        logger.info("Engine started.")
-        self._run_loop()
+        logger.info(f"Engine started (Target: {self._target_hz} Hz).")
+        
+        if blocking:
+            self._run_loop()
+        else:
+            self._loop_thread = threading.Thread(target=self._run_loop, daemon=True)
+            self._loop_thread.start()
 
     def stop(self):
         self._running = False
@@ -70,37 +90,56 @@ class AutomationEngine:
 
     def _run_loop(self):
         """
-        The main loop. In a real GUI app, this usually runs in a separate thread (managed by the Worker).
-        Here we define the logic of a single 'tick' or the continuous loop if run directly.
-        For QThread integration, the Worker will likely call a 'process_frame' method or 
-        we can have a blocking loop here if run in a thread. 
-        Let's implement a blocking loop that checks self._running.
+        Main execution loop with high-precision drift compensation and error trapping.
         """
-        delay = 1.0 / self._target_hz
+        frame_duration = 1.0 / self._target_hz
+        next_frame_time = time.perf_counter()
         
-        while self._running:
-            start_time = time.time()
-            
-            if not self._paused:
-                self._process_frame()
+        logger.info(f"Precision timing loop active at {self._target_hz}Hz.")
+        
+        try:
+            while self._running:
+                if not self._paused:
+                    try:
+                        self._process_frame()
+                    except Exception as e:
+                        logger.error(f"Fatal error in _process_frame: {e}", exc_info=True)
+                        # We don't stop the engine on a single frame error, unless requested
+                    
+                # Calculate next frame boundary
+                next_frame_time += frame_duration
                 
-            elapsed = time.time() - start_time
-            sleep_time = max(0, delay - elapsed)
-            time.sleep(sleep_time)
-            
-        logger.info("Engine loop exited.")
+                # Compensation logic
+                now = time.perf_counter()
+                sleep_time = next_frame_time - now
+                
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                elif sleep_time < -frame_duration:
+                    next_frame_time = now
+                    logger.warning("Engine frame drop detected: processing took too long.")
+        except Exception as e:
+            logger.critical(f"Engine thread crashed: {e}", exc_info=True)
+        finally:
+            self._running = False
+            logger.info("Engine loop exited.")
 
     def _process_frame(self):
-        # 1. Update Vision (if strategy implies polling, though simple strategies usually pull on demand)
-        # self.vision.update() 
-        
-        # 2. Check Rules
-        # We copy list to avoid lock contention issues during iteration if rules are added dynamically
         with self._lock:
+            graph = self.graph
             current_rules = list(self.rules)
             
+        # 1. Execute Graph (Primary)
+        if graph:
+            try:
+                graph.execute(self.state, self.vision, self.input)
+            except Exception as e:
+                logger.error(f"Error executing graph: {e}")
+                
+        # 2. Check Rules (Legacy/Fallback)
         for rule in current_rules:
             try:
                 rule.check_and_execute(self.state, self.vision, self.input)
             except Exception as e:
                 logger.error(f"Error executing rule '{rule.name}': {e}")
+

@@ -64,6 +64,9 @@ def setup_logger(
     if config.get('logging.console', True):
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
+        # Allow overriding console level for verbose terminal output
+        console_level = config.get('logging.console_level', level)
+        console_handler.setLevel(getattr(logging, console_level.upper()))
         logger.addHandler(console_handler)
     
     # File handler

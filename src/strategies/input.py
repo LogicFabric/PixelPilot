@@ -258,32 +258,29 @@ class EvdevStrategy(InputStrategy):
         self.ui.write(e.EV_KEY, btn, 0)  # Button up
         self.ui.syn()
 
-    def start_listening(self):
-        if self._listening: return
+    def start_listening(self) -> bool:
+        """Starts listening in a background thread. Returns True if devices were found."""
+        if self._listening: return True
+        
+        # Check if we have devices before starting
+        devices = self._get_kb_devices()
+        if not devices:
+            logger.warning("Evdev: No input devices found to listen to.")
+            return False
+            
         self._listening = True
-        self._thread = threading.Thread(target=self._listen_loop, daemon=True)
+        self._thread = threading.Thread(target=self._listen_loop, args=(devices,), daemon=True)
         self._thread.start()
-        logger.info("Evdev Listener started (scanning devices...)")
+        logger.info(f"Evdev Listener started (Monitoring {len(devices)} devices).")
+        return True
 
-    def _listen_loop(self):
-        # 1. Find keyboards
-        devices = []
-        try:
-            for path in list_devices():
-                try:
-                    dev = InputDevice(path)
-                    # Simple heuristic: has keys
-                    if e.EV_KEY in dev.capabilities():
-                        devices.append(dev)
-                        logger.debug(f"Found input device: {dev.name}")
-                except:
-                    pass
-        except Exception as err:
-            logger.error(f"Error scanning devices: {err}")
-            return
+    def _listen_loop(self, devices=None):
+        if devices is None:
+            devices = self._get_kb_devices()
 
         if not devices:
             logger.warning("No input devices found for listener.")
+            self._listening = False
             return
 
         # 2. Select Loop
@@ -292,40 +289,145 @@ class EvdevStrategy(InputStrategy):
         
         while self._listening:
             try:
+                # Re-scan if no devices or just periodically
+                if not devices:
+                    devices = self._get_kb_devices()
+                    fds = {dev.fd: dev for dev in devices}
+                    if not devices:
+                        time.sleep(2)
+                        continue
+
                 r, w, x = select.select(fds, [], [], 1.0)
                 for fd in r:
                     dev = fds[fd]
-                    for event in dev.read():
-                        if event.type == e.EV_KEY:
-                            key_evt = evdev.categorize(event)
-                            # key_evt.keycode is either string or list of strings
-                            k = key_evt.keycode
-                            if isinstance(k, list): k = k[0]
-                            k = str(k).replace("KEY_", "").lower()
-                            
-                            pressed = (event.value == 1) # 1=down, 0=up, 2=hold
-                            if event.value != 2: # Ignore hold repeats for trigger logic usually
-                                self._notify_listeners(k, pressed)
+                    try:
+                        for event in dev.read():
+                            if event.type == e.EV_KEY:
+                                key_evt = evdev.categorize(event)
+                                k = key_evt.keycode
+                                if isinstance(k, list): k = k[0]
+                                k = str(k).replace("KEY_", "").lower()
+                                
+                                pressed = (event.value == 1) # 1=down, 0=up, 2=hold
+                                if event.value != 2:
+                                    self._notify_listeners(k, pressed)
+                    except (IOError, OSError) as e:
+                        logger.warning(f"Device disconnected: {dev.name}")
+                        devices.remove(dev)
+                        del fds[fd]
             except Exception as outer_err:
-                 # Device might have disconnected
                  logger.error(f"Listener loop error: {outer_err}")
-                 break
+                 time.sleep(2) # Prevent rapid-fire logging if error persists
+
+    def _get_kb_devices(self):
+        """Helper to find all keyboard devices."""
+        kb_devices = []
+        try:
+            for path in list_devices():
+                try:
+                    dev = InputDevice(path)
+                    if e.EV_KEY in dev.capabilities():
+                        kb_devices.append(dev)
+                except:
+                    pass
+        except:
+            pass
+        return kb_devices
+
+class HybridInputStrategy(InputStrategy):
+    """
+    Hybrid Linux input strategy.
+    
+    Uses evdev for keyboard inputs (Performance + Scancodes)
+    Uses pynput for mouse movements and clicks (Reliable window manager coordinates).
+    
+    This strategy provides the best of both worlds: low-latency keyboard control
+    and compatible absolute mouse positioning on modern Linux desktops.
+    """
+    def __init__(self, screen_width: int = 1920, screen_height: int = 1080):
+        super().__init__()
+        self.evdev = None
+        self.pynput = None
+        
+        try:
+            self.evdev = EvdevStrategy(screen_width, screen_height)
+            logger.info("Hybrid Part 1: Evdev initialized for keyboard")
+        except Exception as e:
+            logger.warning(f"Hybrid Part 1: Evdev failed ({e})")
+            
+        try:
+            self.pynput = PynputStrategy()
+            logger.info("Hybrid Part 2: Pynput initialized for mouse")
+        except Exception as e:
+            logger.error(f"Hybrid Part 2: Pynput failed ({e})")
+            
+        if not self.evdev and not self.pynput:
+            raise RuntimeError("Hybrid Strategy failed: neither evdev nor pynput available")
+
+    def press_key(self, key_code: str):
+        # Prefer evdev for keyboard
+        if self.evdev:
+            self.evdev.press_key(key_code)
+        elif self.pynput:
+            self.pynput.press_key(key_code)
+
+    def click_mouse(self, x: int, y: int, button: str = 'left'):
+        # Prefer pynput for mouse
+        if self.pynput:
+            self.pynput.click_mouse(x, y, button)
+        elif self.evdev:
+            self.evdev.click_mouse(x, y, button)
+
+    def move_mouse(self, x: int, y: int):
+        # Prefer pynput for mouse
+        if self.pynput:
+            self.pynput.move_mouse(x, y)
+        elif self.evdev:
+            self.evdev.move_mouse(x, y)
+
+    def start_listening(self):
+        # Prefer evdev for global listening on Linux
+        success = False
+        if self.evdev:
+            self.evdev.add_listener(self._on_strategy_event)
+            success = self.evdev.start_listening()
+            
+        # Fallback to pynput if evdev failed or is missing
+        if not success and self.pynput:
+            logger.info("Falling back to Pynput for input listening...")
+            self.pynput.add_listener(self._on_strategy_event)
+            self.pynput.start_listening()
+        elif success:
+            logger.info("Hybrid listening active via Evdev.")
+
+    def _on_strategy_event(self, key_code: str, pressed: bool):
+        # Forward internal strategy events to the hybrid strategy's listeners
+        self._notify_listeners(key_code, pressed)
 
 class InputManager:
     """Auto-detects and manages the best input strategy."""
-    def __init__(self):
+    def __init__(self, config=None):
+        self._config = config
         self.strategy: Optional[InputStrategy] = None
         self._init_strategy()
 
     def _init_strategy(self):
-        # 1. Try Evdev
+        # 1. Try Hybrid on Linux
         if platform.system() == 'Linux':
+            try:
+                self.strategy = HybridInputStrategy()
+                logger.info("Using HybridInputStrategy (evdev + pynput)")
+            except Exception as e:
+                logger.warning(f"Hybrid strategy failed ({e}), falling back to standard...")
+        
+        # 2. Try Standard Evdev
+        if not self.strategy and platform.system() == 'Linux':
             try:
                 self.strategy = EvdevStrategy()
             except Exception as e:
                 logger.warning(f"Evdev strategy failed ({e}), falling back...")
         
-        # 2. Try Pynput
+        # 3. Try Pynput
         if not self.strategy:
             try:
                 self.strategy = PynputStrategy()
