@@ -72,6 +72,8 @@ class AutomationEngine:
         else:
             self._loop_thread = threading.Thread(target=self._run_loop, daemon=True)
             self._loop_thread.start()
+            
+        logger.info(f"Engine started (Target: {self._target_hz} Hz).")
 
     def stop(self):
         self._running = False

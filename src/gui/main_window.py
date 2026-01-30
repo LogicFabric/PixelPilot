@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QLabel, QGroupBox, QListWidget, QGraphicsView,
     QMenuBar, QFileDialog, QMessageBox, QDialog, QFormLayout, QSpinBox
 )
@@ -9,6 +9,8 @@ import logging
 from .styles import DARK_THEME
 from .workers import EngineWorker
 from .graph.scene import FBDScene
+from .graph.view import FBGraphicsView
+from .graph.graphics import VisualLink, VisualPort
 from src.core.graph import InputNode, ProcessNode, OutputNode
 from src.core.rules import PixelColorCondition, KeyPressAction
 from src.core.serialization import GraphSerializer
@@ -104,16 +106,13 @@ class MainWindow(QMainWindow):
 
         # Graph View
         self.scene = FBDScene()
-        self.view = QGraphicsView(self.scene)
+        self.view = FBGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Configure scroll bars - show only when needed
         from PyQt6.QtCore import Qt
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        
-        # Better drag behavior
-        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         
         canvas_layout.addWidget(self.view)
         main_layout.addLayout(canvas_layout)
@@ -150,7 +149,6 @@ class MainWindow(QMainWindow):
         if not self.engine.is_running():
             return
             
-        from .graph.graphics import VisualLink, VisualPort
         # Update all links and ports to show signal flow
         for item in self.scene.items():
             if isinstance(item, (VisualLink, VisualPort)):

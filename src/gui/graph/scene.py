@@ -149,12 +149,9 @@ class FBDScene(QGraphicsScene):
                 self.addItem(self.temp_link)
                 return  # Consume the event
         
-        # If no port found, let the default behavior handle it
-        # If we're in linking mode, don't let the view handle the press event
+        # If no port found and not in linking mode, let the default behavior handle it
         if not self.temp_link:
-            # If we're in linking mode, don't let the view handle the press event
-            if not self.temp_link:
-                super().mousePressEvent(event)
+            super().mousePressEvent(event)
         else:
             # Clean up temp link if clicking elsewhere
             self.removeItem(self.temp_link)
@@ -270,16 +267,27 @@ class FBDScene(QGraphicsScene):
         node = visual_node.node_data
         dialog = None
         
+        # Get parent window from scene's view
+        parent_window = None
+        if self.views():
+            parent_window = self.views()[0].window()
+        
         if isinstance(node, InputNode):
-            dialog = InputConfigDialog(node)
+            dialog = InputConfigDialog(node, parent_window)
         elif isinstance(node, ProcessNode):
-            dialog = ProcessConfigDialog(node)
+            dialog = ProcessConfigDialog(node, parent_window)
         elif isinstance(node, OutputNode):
-            dialog = OutputConfigDialog(node)
+            dialog = OutputConfigDialog(node, parent_window)
             
         if dialog and dialog.exec():
             # Update Visuals if needed (e.g. name changed)
             visual_node.title_item.setPlainText(node.name)
+            # Update port labels without breaking connections
+            visual_node._update_port_labels()
+            # Update existing links to reflect any changes
+            for item in self.items():
+                if hasattr(item, 'update_path'):
+                    item.update_path()
 
     def contextMenuEvent(self, event):
         """Right-click menu for scene actions."""

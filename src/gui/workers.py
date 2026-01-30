@@ -20,8 +20,13 @@ class EngineWorker(QObject):
         """Blocking run method called by the thread."""
         try:
             self.log_message.emit("Engine thread started.")
-            # Use blocking=True so the worker thread doesn't exit immediately
-            self.engine.start(blocking=True) 
+            # Start engine in non-blocking mode (creates its own daemon thread)
+            self.engine.start(blocking=False)
+            
+            # Keep this worker thread alive while engine is running
+            import time
+            while self.engine.is_running():
+                time.sleep(0.1)
         except Exception as e:
             self.log_message.emit(f"Engine crashed: {e}")
             self.log_message.emit(traceback.format_exc())

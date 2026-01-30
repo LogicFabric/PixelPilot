@@ -73,7 +73,7 @@ class InputNode(Node):
         self.out_port = self.add_output("Out")
 
     def evaluate(self, state_mgr, vision_mgr, input_mgr):
-        result = self.condition.evaluate(state_mgr, vision_mgr)
+        result = self.condition.evaluate(state_mgr, vision_mgr, input_mgr)
         self.out_port.value = result
 
 class ProcessNode(Node):

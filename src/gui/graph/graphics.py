@@ -104,30 +104,55 @@ class VisualNode(QGraphicsRectItem):
         # Adjust height if needed
         self.height = max(self.height, y_offset + 10)
         self.setRect(0, 0, self.width, self.height)
+    
+    def _update_port_labels(self):
+        """Update port labels without recreating ports to preserve connections."""
+        # Only update labels, don't recreate ports
+        
+        # Find all existing labels and remove them
+        labels_to_remove = []
+        for item in self.childItems():
+            if isinstance(item, QGraphicsTextItem) and item != self.title_item:
+                labels_to_remove.append(item)
+        
+        visited_labels = set()
+        
+        # Update input port labels
+        y_offset = 30
+        for port in self.node_data.inputs:
+            # Check if this port has a visual representation
+            visual_port = self.visual_ports.get(port.name)
+            if visual_port:
+                # Create new label
+                label = QGraphicsTextItem(port.name, self)
+                label.setDefaultTextColor(QColor("#bdc3c7"))
+                label.setFont(QFont("Arial", 8))
+                label.setPos(10, y_offset - 5)
+                visited_labels.add(label)
+            y_offset += 20
+        
+        # Update output port labels
+        y_offset = 30
+        for port in self.node_data.outputs:
+            visual_port = self.visual_ports.get(port.name)
+            if visual_port:
+                label = QGraphicsTextItem(port.name, self)
+                label.setDefaultTextColor(QColor("#bdc3c7"))
+                label.setFont(QFont("Arial", 8))
+                label.setPos(self.width - 30, y_offset - 5)
+                visited_labels.add(label)
+            y_offset += 20
+        
+        # Remove old labels
+        for label in labels_to_remove:
+            if label not in visited_labels:
+                self.scene().removeItem(label)
 
     def mouseDoubleClickEvent(self, event):
-        """Open configuration dialog on double click."""
-        dialog = None
-        if isinstance(self.node_data, InputNode):
-            dialog = InputConfigDialog(self.node_data, self.window())
-        elif isinstance(self.node_data, ProcessNode):
-            dialog = ProcessConfigDialog(self.node_data, self.window())
-        elif isinstance(self.node_data, OutputNode):
-            dialog = OutputConfigDialog(self.node_data, self.window())
-            
-        if dialog and dialog.exec():
-            # Apply changes to visual representation
-            self.title_item.setPlainText(self.node_data.name)
-            # Re-setup ports in case they changed (ProcessNode dynamic inputs)
-            # First remove old labels and ports
-            for item in self.childItems():
-                if isinstance(item, (VisualPort, QGraphicsTextItem)) and item != self.title_item:
-                    self.scene().removeItem(item)
-            self.visual_ports.clear()
-            self._setup_ports()
-            self.update()
-            
-        super().mouseDoubleClickEvent(event)
+        """Consume the event - let the scene handle double-click behavior."""
+        # Let the scene handle double-click events exclusively
+        # This prevents duplicate config dialogs
+        event.accept()
 
 class VisualLink(QGraphicsPathItem):
     """Visual line connecting two ports."""
