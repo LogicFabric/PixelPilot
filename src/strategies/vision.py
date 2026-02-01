@@ -209,4 +209,3 @@ class VisionManager:
         if self.strategy:
             return self.strategy.search_color(region, target, tolerance)
         return None
-</ARG>
