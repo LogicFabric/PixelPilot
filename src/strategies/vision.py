@@ -166,21 +166,38 @@ class VisionManager:
         self._init_strategy()
 
     def _init_strategy(self):
-        # 1. Try MSS
+        # Check if we're on Wayland
+        is_wayland = os.environ.get('WAYLAND_DISPLAY') is not None or 'wayland' in (os.environ.get('XDG_SESSION_TYPE', '').lower())
+        
+        # 1. Try MSS first - this is our primary strategy
         try:
             self.strategy = MSSStrategy()
-            # Validating if MSS actually works (some Wayland setups don't error but return black)
-            # For now, assume if no exception it's "okay" or user forced override.
-            # Real robust check would be grabbing a pixel.
-        except Exception:
-            logger.warning("MSS failed, trying CLI strategy...")
+            # Test if it works properly by trying to grab a pixel
+            test_pixel = self.strategy.get_pixel(0, 0)
+            if test_pixel is None:
+                logger.warning("MSS initialized but failed to grab pixel - likely Wayland issue")
+                raise Exception("MSS not working properly on Wayland")
+        except Exception as e:
+            logger.warning(f"MSS failed to initialize or work properly: {e}")
             self.strategy = None
 
-        if not self.strategy:
+        # If MSS failed and we're on Wayland, immediately try CLI fallback
+        if not self.strategy and is_wayland:
             try:
+                logger.info("Wayland detected, attempting CLI fallback...")
                 self.strategy = CLIStrategy()
+                logger.info("Successfully initialized CLI strategy for Wayland")
             except Exception as e:
-                logger.error(f"All vision strategies failed: {e}")
+                logger.error(f"CLI strategy also failed: {e}")
+                self.strategy = None
+        # If MSS failed but we're not on Wayland, try CLI as backup
+        elif not self.strategy:
+            try:
+                logger.info("Trying CLI fallback for non-Wayland system...")
+                self.strategy = CLIStrategy()
+                logger.info("Successfully initialized CLI strategy")
+            except Exception as e:
+                logger.error(f"CLI strategy also failed: {e}")
                 self.strategy = None
 
     def get_pixel(self, x: int, y: int) -> Optional[Tuple[int, int, int]]:
@@ -192,3 +209,4 @@ class VisionManager:
         if self.strategy:
             return self.strategy.search_color(region, target, tolerance)
         return None
+</ARG>

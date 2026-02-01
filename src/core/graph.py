@@ -1,7 +1,10 @@
 from typing import List, Dict, Any, Optional
 import uuid
 import time
+import logging
 from .rules import Condition, Action, LogicEvaluator
+
+logger = logging.getLogger(__name__)
 
 class Port:
     """Represents a connection point on a node."""

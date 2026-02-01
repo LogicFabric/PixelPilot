@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Any
 import time
+import logging
 from .state import StateManager
+
+logger = logging.getLogger(__name__)
 
 class Condition(ABC):
     @abstractmethod
