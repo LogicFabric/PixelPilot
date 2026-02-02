@@ -1,8 +1,0 @@
-PyQt6>=6.4.0
-mss>=9.0.1
-pynput>=1.7.6
-evdev>=1.6.1; sys_platform == 'linux'
-Pillow>=10.0.0
-PyYAML>=6.0
-fastapi>=0.104.0
-uvicorn>=0.24.0
