@@ -26,6 +26,17 @@ class VisionStrategy(ABC):
         """
         pass
 
+class MockVisionStrategy(VisionStrategy):
+    """Mock vision strategy that returns fixed values for testing in Docker."""
+    
+    def get_pixel(self, x: int, y: int) -> Optional[Tuple[int, int, int]]:
+        """Always return black (0,0,0) - mock implementation."""
+        return (0, 0, 0)
+
+    def search_color(self, region: Tuple[int, int, int, int], target_rgb: Tuple[int, int, int], tolerance: int = 10) -> Optional[Tuple[int, int]]:
+        """Always return None - mock implementation."""
+        return None
+
 class MSSStrategy(VisionStrategy):
     """Uses the `mss` library. Fast and cross-platform (X11/Win/Mac)."""
     def __init__(self):
@@ -72,11 +83,13 @@ class CLIStrategy(VisionStrategy):
     def __init__(self):
         self.cmd = self._detect_command()
         if not self.cmd:
+            # If no command found, raise an error so the VisionManager can fall back
             raise RuntimeError("No compatible CLI screenshot tool found (spectacle, grim, scrot).")
         logger.info(f"Initialized CLI Strategy using {self.cmd}")
         self.tmp_file = os.path.join(tempfile.gettempdir(), "pixelpilot_shot.png")
 
     def _detect_command(self):
+        # Try to detect if tools are available
         if shutil.which("spectacle"): return "spectacle"
         if shutil.which("grim"): return "grim"
         if shutil.which("scrot"): return "scrot"
@@ -85,11 +98,15 @@ class CLIStrategy(VisionStrategy):
     def _take_screenshot(self, region=None):
         """
         Take a screenshot and save to tmp_file. 
-        Region is (x, y, w, h). If None, full screen (not implemented efficiently here).
+        Region is (x, y, w, h). If None, full screen.
         """
-        # Delete old file
+        # Delete old file if it exists
         if os.path.exists(self.tmp_file):
-            os.remove(self.tmp_file)
+            try:
+                os.remove(self.tmp_file)
+            except Exception as e:
+                logger.warning(f"Could not remove old screenshot file: {e}")
+                pass
 
         # Build command based on tool
         if self.cmd == "spectacle":
@@ -118,9 +135,18 @@ class CLIStrategy(VisionStrategy):
                  cmd = ["scrot", "--overwrite", self.tmp_file]
         
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
-        except subprocess.CalledProcessError:
+            result = subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Verify file was created
+            if os.path.exists(self.tmp_file):
+                return True
+            else:
+                logger.warning(f"Screenshot command succeeded but no file created: {cmd}")
+                return False
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Screenshot command failed: {e} - Command: {' '.join(cmd)}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error in screenshot: {e}")
             return False
 
     def get_pixel(self, x: int, y: int) -> Optional[Tuple[int, int, int]]:
@@ -154,18 +180,25 @@ class CLIStrategy(VisionStrategy):
                     r, g, b = pixels[x, y]
                     if sum([abs(r - target_rgb[0]), abs(g - target_rgb[1]), abs(b - target_rgb[2])]) <= tolerance:
                         return (region[0] + x, region[1] + y)
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error in _search_in_file: {e}")
             pass
         return None
 
 class VisionManager:
     """Auto-detects and manages the best vision strategy."""
-    def __init__(self, config=None):
+    def __init__(self, config=None, use_mock=False):
         self._config = config
         self.strategy: Optional[VisionStrategy] = None
-        self._init_strategy()
+        self._init_strategy(use_mock)
 
-    def _init_strategy(self):
+    def _init_strategy(self, use_mock=False):
+        # If mock is forced, use it immediately
+        if use_mock:
+            logger.info("Using Mock Vision Strategy (forced)")
+            self.strategy = MockVisionStrategy()
+            return
+            
         # Check if we're on Wayland
         is_wayland = os.environ.get('WAYLAND_DISPLAY') is not None or 'wayland' in (os.environ.get('XDG_SESSION_TYPE', '').lower())
         
