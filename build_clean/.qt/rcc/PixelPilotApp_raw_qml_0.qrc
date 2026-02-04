@@ -1,0 +1,9 @@
+<RCC>
+  <qresource prefix="/PixelPilot/">
+    <file alias="src/ui/Main.qml">/data/projects/PixelPilot/src/ui/Main.qml</file>
+    <file alias="src/ui/NodeGraph.qml">/data/projects/PixelPilot/src/ui/NodeGraph.qml</file>
+    <file alias="src/ui/components/GridBackground.qml">/data/projects/PixelPilot/src/ui/components/GridBackground.qml</file>
+    <file alias="src/ui/components/NodeBlock.qml">/data/projects/PixelPilot/src/ui/components/NodeBlock.qml</file>
+  </qresource>
+</RCC>
+

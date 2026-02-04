@@ -1,0 +1,9 @@
+module PixelPilot
+typeinfo PixelPilotApp.qmltypes
+prefer :/PixelPilot/
+Main 1.0 src/ui/Main.qml
+NodeGraph 1.0 src/ui/NodeGraph.qml
+GridBackground 1.0 src/ui/components/GridBackground.qml
+NodeBlock 1.0 src/ui/components/NodeBlock.qml
+depends QtQuick
+

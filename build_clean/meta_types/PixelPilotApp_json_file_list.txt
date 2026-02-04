@@ -1,0 +1,1 @@
+/data/projects/PixelPilot/build_clean/PixelPilotApp_autogen/include/../VU2PALRVTW/moc_WaylandScreenGrabber.cpp.json

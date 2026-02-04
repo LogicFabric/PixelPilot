@@ -1,0 +1,2 @@
+set(__QT_DEPLOY_TARGET_PixelPilotApp_FILE /data/projects/PixelPilot/build_clean/PixelPilotApp)
+set(__QT_DEPLOY_TARGET_PixelPilotApp_TYPE EXECUTABLE)

@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="/PixelPilot">/data/projects/PixelPilot/build_clean/PixelPilot</file>
+
+  </qresource>
+</RCC>

@@ -1,0 +1,8 @@
+--resource
+/data/projects/PixelPilot/build_clean/.qt/rcc/qmake_PixelPilot.qrc
+--resource
+/data/projects/PixelPilot/build_clean/.qt/rcc/PixelPilotApp_raw_qml_0.qrc
+/PixelPilot/src/ui/Main.qml
+/PixelPilot/src/ui/NodeGraph.qml
+/PixelPilot/src/ui/components/GridBackground.qml
+/PixelPilot/src/ui/components/NodeBlock.qml

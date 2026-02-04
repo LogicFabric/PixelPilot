@@ -1,0 +1,55 @@
+{
+    "classes": [
+        {
+            "className": "WaylandScreenGrabber",
+            "lineNumber": 9,
+            "object": true,
+            "qualifiedClassName": "WaylandScreenGrabber",
+            "signals": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "path",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 0,
+                    "lineNumber": 20,
+                    "name": "sessionCreated",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "message",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 1,
+                    "lineNumber": 21,
+                    "name": "errorOccurred",
+                    "returnType": "void"
+                }
+            ],
+            "slots": [
+                {
+                    "access": "public",
+                    "index": 2,
+                    "lineNumber": 17,
+                    "name": "initCapture",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QObject"
+                }
+            ]
+        }
+    ],
+    "inputFile": "WaylandScreenGrabber.h",
+    "outputRevision": 69
+}

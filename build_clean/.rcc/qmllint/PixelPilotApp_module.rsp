@@ -1,0 +1,14 @@
+-I
+/data/projects/PixelPilot/build_clean
+-I
+/data/projects/PixelPilot/build_clean/PixelPilot
+-I
+/data/projects/PixelPilot/build_clean
+-I
+/data/Qt/6.10.2/gcc_64/qml
+--resource
+/data/projects/PixelPilot/build_clean/.qt/rcc/qmake_PixelPilot.qrc
+--resource
+/data/projects/PixelPilot/build_clean/.qt/rcc/PixelPilotApp_raw_qml_0.qrc
+--module
+PixelPilot
