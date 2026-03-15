@@ -11,6 +11,7 @@ class WaylandScreenGrabber : public QObject
     Q_OBJECT
 
 public:
+    // @AI-CONTRACT (Wayland Capture)
     explicit WaylandScreenGrabber(QObject *parent = nullptr);
 
 public slots:

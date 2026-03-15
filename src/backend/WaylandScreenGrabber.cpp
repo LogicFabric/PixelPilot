@@ -12,6 +12,8 @@ void WaylandScreenGrabber::initCapture()
 {
     qDebug() << "Attempting to create Wayland screen capture session...";
 
+    // @AI-LOCKED (Wayland quirks/portal)
+    // DO NOT modify this logic. It exists for specific OS-level Wayland reasons.
     // Create DBus message to call org.freedesktop.portal.Desktop.CreateSession
     QDBusMessage message = QDBusMessage::createMethodCall(
         "org.freedesktop.portal.Desktop",           // Service
@@ -43,6 +45,8 @@ void WaylandScreenGrabber::initCapture()
 
 void WaylandScreenGrabber::handleDBusResponse(const QDBusMessage &message)
 {
+    // @AI-FREE
+    // Free to optimize/refactor this implementation logic as needed.
     // Extract the response data
     QList<QVariant> arguments = message.arguments();
     

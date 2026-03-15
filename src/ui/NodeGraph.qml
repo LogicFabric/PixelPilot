@@ -1,7 +1,13 @@
 import QtQuick
+import PixelPilot
+import "components"
 
 Item {
     id: nodeGraph
+    
+    // @AI-CONTRACT (State Management)
+    // All global variables and states are stored in the C++ GlobalVarManager. 
+    // NEVER store business logic or global state in QML/JavaScript.
     
     // Main container for the entire graph
     width: parent.width
@@ -50,6 +56,7 @@ Item {
     }
     
     // Pan functionality - click and drag the background to move view
+    // @AI-FREE (Panning Interaction Logic)
     MouseArea {
         id: panMouseArea
         anchors.fill: parent

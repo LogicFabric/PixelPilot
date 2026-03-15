@@ -37,6 +37,8 @@ Item {
         }
         
         // Input port (left)
+        // @AI-CONTRACT (Node Graph: Boolean Connections)
+        // Connections represent purely BOOLEAN signals. Updates require visual tracking.
         Rectangle {
             id: inputPort
             width: 12
@@ -70,6 +72,7 @@ Item {
     }
     
     // Drag handler for moving the block
+    // @AI-FREE (Drag and Drop Interaction)
     DragHandler {
         id: dragHandler
         target: nodeBlock

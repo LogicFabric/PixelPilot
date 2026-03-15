@@ -11,6 +11,8 @@ Item {
     }
     
     // Grid pattern using Canvas
+    // @AI-FREE (Grid Drawing Logic)
+    // Canvas performance optimization/refactoring is permitted here.
     Canvas {
         anchors.fill: parent
         onPaint: {

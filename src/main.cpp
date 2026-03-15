@@ -5,6 +5,9 @@
 
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
+    
+    // @AI-CONTRACT (UI Framework: Qt Quick ONLY)
+    // NEVER suggest or use QWidget or .ui files
     QQmlApplicationEngine engine;
     
     // Load the QML file from the module URI
@@ -18,9 +21,12 @@ int main(int argc, char *argv[]) {
     engine.load(url);
     
     // Create and initialize the Wayland screen grabber
+    // @AI-CONTRACT (Wayland Capture)
+    // NEVER use QScreen::grabWindow or QPixmap::grabWindow. MUST route all capture through WaylandGrabber.
     WaylandScreenGrabber* screenGrabber = new WaylandScreenGrabber(&app);
     
-    // Initialize capture after the app starts (0ms delay)
+    // @AI-CONTRACT (Signal Syntax: Qt 6)
+    // MUST use Qt 6 function-pointer syntax. NO old macros.
     QTimer::singleShot(0, screenGrabber, &WaylandScreenGrabber::initCapture);
     
     return app.exec();

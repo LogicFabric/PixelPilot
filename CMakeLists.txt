@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(PixelPilotApp)
+
+# Output the final binary to the /bin folder in the project root
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -18,7 +22,7 @@ add_executable(PixelPilotApp
 qt_add_qml_module(PixelPilotApp
     URI "PixelPilot"
     VERSION 1.0
-    QML_FILES 
+    QML_FILES
         src/ui/Main.qml
         src/ui/NodeGraph.qml
         src/ui/components/GridBackground.qml

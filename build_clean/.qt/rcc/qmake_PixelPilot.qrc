@@ -1,6 +1,0 @@
-<RCC>
-  <qresource prefix="/PixelPilot">
-    <file alias="qmldir">/data/projects/PixelPilot/build_clean/PixelPilot/qmldir</file>
-  </qresource>
-</RCC>
-
