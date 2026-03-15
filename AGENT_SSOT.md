@@ -38,10 +38,10 @@ Before you write or modify ANY code, you MUST output a brief plan formatted exac
 * *[Memory]*: Refactored build system to use a centralized `build/` folder and established a "No Binaries in Repo" policy for GitHub Releases.
 
 ## 6. 🎯 CURRENT TASK
-
+In the main window there should be on the left side a small area where we can drag and drop the difference FBDs into the 2D space. Please figure out why this is missing and if this is not a bug and still not implemented, please implement it.
 
 ## 7. 🚀 BUILD & RUN (Testing your changes)
-To verify that your C++ code compiles, your QML syntax is correct, and the Docker image builds successfully, you MUST run the automated validation script. This script runs synchronously in an `offscreen` headless Qt mode and will safely exit without blocking your terminal.
+To verify that your C++ code compiles, your QML syntax is correct, and the Docker image builds successfully, you MUST run the automated validation script. This script dynamically boots the `arch-dev` container in an `offscreen` headless Qt mode, verifies it stays alive for 5 seconds, and will safely exit without blocking your terminal.
 
 **Run this command to test your changes:**
 `./ai-build-test.sh`
